@@ -6,12 +6,12 @@
  * found in the LICENSE file at https://angular.io/license
  */
 
-import {absoluteFrom, AbsoluteFsPath, FileSystem, getFileSystem} from '@angular/compiler-cli/src/ngtsc/file_system';
-import {runInEachFileSystem} from '@angular/compiler-cli/src/ngtsc/file_system/testing';
+import {absoluteFrom, AbsoluteFsPath, FileSystem, getFileSystem} from '../../src/ngtsc/file_system';
+import {runInEachFileSystem} from '../../src/ngtsc/file_system/testing';
+import {MockLogger} from '../../src/ngtsc/logging/testing';
 
 import {clearTsConfigCache, getSharedSetup, NgccOptions} from '../src/ngcc_options';
 
-import {MockLogger} from './helpers/mock_logger';
 
 
 runInEachFileSystem(() => {
@@ -55,6 +55,48 @@ runInEachFileSystem(() => {
       const setup = getSharedSetup({...createOptions(), tsConfigPath: null});
       expect(setup.tsConfigPath).toBe(null);
       expect(setup.tsConfig).toBe(null);
+    });
+
+    it('should warn about a solution-style tsconfig if the tsConfigPath is inferred', () => {
+      fs.writeFile(fs.resolve(projectPath, 'tsconfig.app.json'), '{"files": ["src/index.ts"]}');
+      fs.writeFile(fs.resolve(projectPath, 'tsconfig.test.json'), '{"files": ["src/test.ts"]}');
+      fs.writeFile(pathToProjectTsConfig, JSON.stringify({
+        'files': [],
+        'references': [
+          {'path': 'tsconfig.app.json'},
+          {'path': 'tsconfig.test.json'},
+        ]
+      }));
+      const setup = getSharedSetup({...createOptions()});
+      expect(setup.tsConfigPath).toBeUndefined();
+      expect(setup.tsConfig?.rootNames).toEqual([]);
+      expect((setup.logger as MockLogger).logs.warn).toEqual([[
+        `The inferred tsconfig file "${
+            pathToProjectTsConfig}" appears to be "solution-style" since it contains no root files but does contain project references.\n` +
+        `This is probably not wanted, since ngcc is unable to infer settings like "paths" mappings from such a file.\n` +
+        `Perhaps you should have explicitly specified one of the referenced projects using the --tsconfig option. For example:\n\n` +
+        `  ngcc ... --tsconfig "tsconfig.app.json"\n` +
+        `  ngcc ... --tsconfig "tsconfig.test.json"\n` +
+        `\nFind out more about solution-style tsconfig at https://devblogs.microsoft.com/typescript/announcing-typescript-3-9/#solution-style-tsconfig.\n` +
+        `If you did intend to use this file, then you can hide this warning by providing it explicitly:\n\n` +
+        `  ngcc ... --tsconfig "tsconfig.json"`
+      ]]);
+    });
+
+    it('should not warn about a solution-style tsconfig if the tsConfigPath is explicit', () => {
+      fs.writeFile(fs.resolve(projectPath, 'tsconfig.app.json'), '{"files": ["src/index.ts"]}');
+      fs.writeFile(fs.resolve(projectPath, 'tsconfig.test.json'), '{"files": ["src/test.ts"]}');
+      fs.writeFile(pathToProjectTsConfig, JSON.stringify({
+        'files': [],
+        'references': [
+          {'path': 'tsconfig.app.json'},
+          {'path': 'tsconfig.test.json'},
+        ]
+      }));
+      const setup = getSharedSetup({...createOptions(), tsConfigPath: pathToProjectTsConfig});
+      expect(setup.tsConfigPath).toEqual(pathToProjectTsConfig);
+      expect(setup.tsConfig?.rootNames).toEqual([]);
+      expect((setup.logger as MockLogger).logs.warn).toEqual([]);
     });
   });
 

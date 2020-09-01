@@ -249,10 +249,26 @@ export function compileComponentFromMetadata(
   // // e.g. `vars: 2`
   definitionMap.set('vars', o.literal(root.vars!));
 
+<<<<<<< HEAD
   // e.g. `consts: [['one', 'two'], ['three', 'four']]
   // const consts = templateBuilder.getConsts();
   if (root.consts !== null && root.consts.length > 0) {
     definitionMap.set('consts', o.literalArr(root.consts));
+=======
+  // Generate `consts` section of ComponentDef:
+  // - either as an array:
+  //   `consts: [['one', 'two'], ['three', 'four']]`
+  // - or as a factory function in case additional statements are present (to support i18n):
+  //   `consts: function() { var i18n_0; if (ngI18nClosureMode) {...} else {...} return [i18n_0]; }`
+  const {constExpressions, prepareStatements} = templateBuilder.getConsts();
+  if (constExpressions.length > 0) {
+    let constsExpr: o.LiteralArrayExpr|o.FunctionExpr = o.literalArr(constExpressions);
+    // Prepare statements are present - turn `consts` into a function.
+    if (prepareStatements.length > 0) {
+      constsExpr = o.fn([], [...prepareStatements, new o.ReturnStatement(constsExpr)]);
+    }
+    definitionMap.set('consts', constsExpr);
+>>>>>>> 59c234cfb40aeb71af401cb58a2a0e1462d9b42d
   }
 
   definitionMap.set('template', emitTemplateFunction(root, constantPool));
@@ -284,7 +300,7 @@ export function compileComponentFromMetadata(
     const styleValues = meta.encapsulation == core.ViewEncapsulation.Emulated ?
         compileStyles(meta.styles, CONTENT_ATTR, HOST_ATTR) :
         meta.styles;
-    const strings = styleValues.map(str => o.literal(str));
+    const strings = styleValues.map(str => constantPool.getConstLiteral(o.literal(str)));
     definitionMap.set('styles', o.literalArr(strings));
   } else if (meta.encapsulation === core.ViewEncapsulation.Emulated) {
     // If there is no style, don't generate css selectors on elements
@@ -693,7 +709,7 @@ function createHostBindingsFunction(
       propertyBindings.push(instructionParams);
     } else if (instruction === R3.attribute) {
       attributeBindings.push(instructionParams);
-    } else if (instruction === R3.updateSyntheticHostBinding) {
+    } else if (instruction === R3.syntheticHostProperty) {
       syntheticHostBindings.push(instructionParams);
     } else {
       updateStatements.push(o.importExpr(instruction).callFn(instructionParams).toStmt());
@@ -710,7 +726,7 @@ function createHostBindingsFunction(
 
   if (syntheticHostBindings.length > 0) {
     updateStatements.push(
-        chainedInstruction(R3.updateSyntheticHostBinding, syntheticHostBindings).toStmt());
+        chainedInstruction(R3.syntheticHostProperty, syntheticHostBindings).toStmt());
   }
 
   // since we're dealing with directives/components and both have hostBinding
@@ -767,7 +783,7 @@ function createHostBindingsFunction(
 
 function bindingFn(implicit: any, value: AST) {
   return convertPropertyBinding(
-      null, implicit, value, 'b', BindingForm.TrySimple, () => error('Unexpected interpolation'));
+      null, implicit, value, 'b', BindingForm.Expression, () => error('Unexpected interpolation'));
 }
 
 function convertStylingCall(
@@ -791,7 +807,7 @@ function getBindingNameAndInstruction(binding: ParsedProperty):
       // host bindings that have a synthetic property (e.g. @foo) should always be rendered
       // in the context of the component and not the parent. Therefore there is a special
       // compatibility instruction available for this purpose.
-      instruction = R3.updateSyntheticHostBinding;
+      instruction = R3.syntheticHostProperty;
     } else {
       instruction = R3.hostProperty;
     }
@@ -821,8 +837,7 @@ function createHostListeners(eventBindings: ParsedEvent[], name?: string): o.Sta
   });
 
   if (syntheticListeners.length > 0) {
-    instructions.push(
-        chainedInstruction(R3.componentHostSyntheticListener, syntheticListeners).toStmt());
+    instructions.push(chainedInstruction(R3.syntheticHostListener, syntheticListeners).toStmt());
   }
 
   if (listeners.length > 0) {

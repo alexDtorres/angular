@@ -350,17 +350,6 @@ export function detachView(lContainer: LContainer, removeIndex: number): LView|u
 }
 
 /**
- * Removes a view from a container, i.e. detaches it and then destroys the underlying LView.
- *
- * @param lContainer The container from which to remove a view
- * @param removeIndex The index of the view to remove
- */
-export function removeView(lContainer: LContainer, removeIndex: number) {
-  const detachedView = detachView(lContainer, removeIndex);
-  detachedView && destroyLView(detachedView[TVIEW], detachedView);
-}
-
-/**
  * A standalone function which destroys an LView,
  * conducting clean up (e.g. removing listeners, calling onDestroys).
  *
@@ -552,7 +541,7 @@ function getRenderParent(tView: TView, tNode: TNode, currentView: LView): REleme
     } else {
       // We are inserting a root element of the component view into the component host element and
       // it should always be eager.
-      ngDevMode && assertNodeOfPossibleTypes(hostTNode, TNodeType.Element);
+      ngDevMode && assertNodeOfPossibleTypes(hostTNode, [TNodeType.Element]);
       return currentView[HOST];
     }
   } else {
@@ -698,10 +687,10 @@ export function appendChild(
  */
 function getFirstNativeNode(lView: LView, tNode: TNode|null): RNode|null {
   if (tNode !== null) {
-    ngDevMode &&
-        assertNodeOfPossibleTypes(
-            tNode, TNodeType.Element, TNodeType.Container, TNodeType.ElementContainer,
-            TNodeType.IcuContainer, TNodeType.Projection);
+    ngDevMode && assertNodeOfPossibleTypes(tNode, [
+      TNodeType.Element, TNodeType.Container, TNodeType.ElementContainer, TNodeType.IcuContainer,
+      TNodeType.Projection
+    ]);
 
     const tNodeType = tNode.type;
     if (tNodeType === TNodeType.Element) {
@@ -778,10 +767,10 @@ function applyNodes(
     renderParent: RElement|null, beforeNode: RNode|null, isProjection: boolean) {
   while (tNode != null) {
     ngDevMode && assertTNodeForLView(tNode, lView);
-    ngDevMode &&
-        assertNodeOfPossibleTypes(
-            tNode, TNodeType.Container, TNodeType.Element, TNodeType.ElementContainer,
-            TNodeType.Projection, TNodeType.Projection, TNodeType.IcuContainer);
+    ngDevMode && assertNodeOfPossibleTypes(tNode, [
+      TNodeType.Container, TNodeType.Element, TNodeType.ElementContainer, TNodeType.Projection,
+      TNodeType.IcuContainer
+    ]);
     const rawSlotValue = lView[tNode.index];
     const tNodeType = tNode.type;
     if (isProjection) {
@@ -798,7 +787,7 @@ function applyNodes(
         applyProjectionRecursive(
             renderer, action, lView, tNode as TProjectionNode, renderParent, beforeNode);
       } else {
-        ngDevMode && assertNodeOfPossibleTypes(tNode, TNodeType.Element, TNodeType.Container);
+        ngDevMode && assertNodeOfPossibleTypes(tNode, [TNodeType.Element, TNodeType.Container]);
         applyToElementOrContainer(action, renderer, renderParent, rawSlotValue, beforeNode);
       }
     }
